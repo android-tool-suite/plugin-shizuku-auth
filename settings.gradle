@@ -1,0 +1,27 @@
+pluginManagement {
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
+    plugins {
+        id "com.android.application" version "8.7.3"
+    }
+}
+
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        def sdkRepository = providers.gradleProperty("atsSdkRepository")
+                .orElse(providers.environmentVariable("ATS_SDK_REPOSITORY"))
+                .orNull
+        if (sdkRepository) {
+            maven { url = uri(sdkRepository) }
+        }
+        mavenLocal()
+        google()
+        mavenCentral()
+    }
+}
+
+rootProject.name = "android-tool-suite-shizuku-auth"

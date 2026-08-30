@@ -1,0 +1,67 @@
+{
+  "$schema": "https://android-tool-suite.test/contracts/manifest-v3.schema.json",
+  "format": "ats-plugin",
+  "formatVersion": 3,
+  "plugin": {
+    "id": "shizuku_auth",
+    "title": "Shizuku 授权",
+    "description": "连接 Shizuku，让需要系统权限的工具可以在你允许后完成操作。",
+    "version": "@VERSION_NAME@",
+    "versionCode": @VERSION_CODE@,
+    "minHostVersionCode": @MIN_HOST_VERSION_CODE@,
+    "publisher": "android_tool_suite.providers",
+    "kind": "trusted-provider"
+  },
+  "platforms": ["android"],
+  "runtime": {
+    "ui": [
+      { "id": "main", "type": "declarative", "entry": "ui/main.json" }
+    ],
+    "background": [],
+    "providers": [
+      {
+        "id": "main-provider",
+        "type": "android-dex",
+        "code": "android/provider.apk",
+        "entryClass": "com.androidtoolsuite.provider.shizuku.ShizukuProviderEntry",
+        "activation": "cold-start"
+      }
+    ]
+  },
+  "requires": {
+    "plugins": [],
+    "capabilities": [
+      { "id": "shizuku.control", "version": "^1.0.0", "optional": false, "scopes": {} }
+    ]
+  },
+  "provides": {
+    "capabilities": [
+      {
+        "id": "shizuku.control",
+        "version": "1.0.0",
+        "providerEntry": "main-provider",
+        "methods": ["shizuku.getConnection", "shizuku.requestPermission", "shizuku.connect"]
+      },
+      {
+        "id": "accessibility.manage",
+        "version": "1.0.0",
+        "providerEntry": "main-provider",
+        "methods": ["accessibility.getConnection", "accessibility.listServices", "accessibility.setEnabled"]
+      }
+    ]
+  },
+  "contributes": {
+    "tools": [{ "id": "main", "uiEntry": "main" }],
+    "homeWidgets": [
+      {
+        "id": "status",
+        "title": "Shizuku",
+        "template": "status",
+        "dataSource": "shizuku.getConnection",
+        "sizes": ["2x2", "4x2"]
+      }
+    ]
+  },
+  "datasets": [],
+  "tasks": []
+}

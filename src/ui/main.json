@@ -1,0 +1,123 @@
+{
+  "$schema": "https://android-tool-suite.test/contracts/declarative-ui-v1.schema.json",
+  "formatVersion": 1,
+  "initialState": {
+    "connection": {
+      "state": "loading",
+      "title": "正在读取连接状态",
+      "detail": "请稍候。",
+      "ready": false,
+      "granted": false,
+      "connected": false,
+      "uid": 0
+    }
+  },
+  "queries": [
+    {
+      "id": "connection",
+      "capability": "shizuku.control",
+      "method": "shizuku.getConnection",
+      "payload": {},
+      "target": "connection",
+      "required": true,
+      "deadlineMs": 5000
+    }
+  ],
+  "actions": [
+    {
+      "id": "request-permission",
+      "capability": "shizuku.control",
+      "method": "shizuku.requestPermission",
+      "payload": {},
+      "refresh": ["connection"],
+      "successMessage": "已提交 Shizuku 授权请求",
+      "deadlineMs": 5000
+    },
+    {
+      "id": "connect-service",
+      "capability": "shizuku.control",
+      "method": "shizuku.connect",
+      "payload": {},
+      "refresh": ["connection"],
+      "successMessage": "正在连接系统服务",
+      "deadlineMs": 5000
+    }
+  ],
+  "body": {
+    "type": "column",
+    "gap": "large",
+    "children": [
+      {
+        "type": "notice",
+        "tone": "neutral",
+        "value": "此插件已被应用完全信任，可以直接使用应用拥有的系统权限。"
+      },
+      {
+        "type": "card",
+        "tone": "primary",
+        "when": { "path": "connection.connected", "equals": true },
+        "children": [
+          {
+            "type": "row",
+            "gap": "medium",
+            "children": [
+              { "type": "icon", "name": "check-circle", "tone": "success" },
+              {
+                "type": "column",
+                "gap": "small",
+                "children": [
+                  { "type": "text", "value": { "path": "connection.title", "fallback": "状态未知" }, "style": "title" },
+                  { "type": "text", "value": { "path": "connection.detail", "fallback": "暂时无法读取连接状态" }, "style": "body", "tone": "muted" }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "card",
+        "tone": "surface",
+        "when": { "path": "connection.connected", "equals": false },
+        "children": [
+          {
+            "type": "row",
+            "gap": "medium",
+            "children": [
+              { "type": "icon", "name": "cloud-off", "tone": "muted" },
+              {
+                "type": "column",
+                "gap": "small",
+                "children": [
+                  { "type": "text", "value": { "path": "connection.title", "fallback": "状态未知" }, "style": "title" },
+                  { "type": "text", "value": { "path": "connection.detail", "fallback": "暂时无法读取连接状态" }, "style": "body", "tone": "muted" }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "row",
+        "gap": "medium",
+        "children": [
+          {
+            "type": "button",
+            "label": "请求授权",
+            "action": "request-permission",
+            "style": "primary",
+            "fullWidth": true,
+            "enabledWhen": { "path": "connection.state", "equals": "unauthorized" }
+          },
+          {
+            "type": "button",
+            "label": "连接服务",
+            "action": "connect-service",
+            "style": "secondary",
+            "fullWidth": true,
+            "enabledWhen": { "path": "connection.state", "equals": "connecting" }
+          }
+        ]
+      }
+    ]
+  }
+}

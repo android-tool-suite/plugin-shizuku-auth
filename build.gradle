@@ -1,0 +1,137 @@
+plugins {
+    id "com.android.application"
+}
+
+def pluginVersionName = "1.0.0"
+def pluginVersionCode = 1
+def minHostVersionCode = 23
+def pluginSdkVersion = providers.gradleProperty("atsPluginSdkVersion").get()
+
+android {
+    namespace "com.androidtoolsuite.provider.shizuku"
+    compileSdk 35
+
+    defaultConfig {
+        applicationId "com.androidtoolsuite.provider.shizuku"
+        minSdk 24
+        targetSdk 35
+        versionCode pluginVersionCode
+        versionName pluginVersionName
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    sourceSets {
+        main {
+            manifest.srcFile "src/android/AndroidManifest.xml"
+            java.srcDirs = ["src/android/java"]
+        }
+    }
+}
+
+dependencies {
+    compileOnly "com.androidtoolsuite:plugin-sdk:$pluginSdkVersion"
+}
+
+def packageStaging = layout.buildDirectory.dir("generated/plugin-package")
+def packagedPlugin = layout.buildDirectory.file("outputs/atsplugin/shizuku-auth.atsplugin")
+
+def generatePluginManifest = tasks.register("generatePluginManifest") {
+    inputs.property("pluginVersionName", pluginVersionName)
+    inputs.property("pluginVersionCode", pluginVersionCode)
+    inputs.property("minHostVersionCode", minHostVersionCode)
+    inputs.file("src/manifest.template.json")
+    outputs.file(packageStaging.map { it.file("manifest.json") })
+    doLast {
+        def output = packageStaging.get().file("manifest.json").asFile
+        output.parentFile.mkdirs()
+        output.setText(
+                file("src/manifest.template.json").getText("UTF-8")
+                        .replace("@VERSION_NAME@", pluginVersionName)
+                        .replace("@VERSION_CODE@", pluginVersionCode.toString())
+                        .replace("@MIN_HOST_VERSION_CODE@", minHostVersionCode.toString()),
+                "UTF-8"
+        )
+    }
+}
+
+def preparePluginPackage = tasks.register("preparePluginPackage") {
+    dependsOn "assembleDebug", generatePluginManifest
+    inputs.dir("src/ui")
+    inputs.files(layout.buildDirectory.dir("outputs/apk/debug"))
+    outputs.dir(packageStaging)
+    doLast {
+        def root = packageStaging.get().asFile
+        delete new File(root, "ui"), new File(root, "android"), new File(root, "META-INF")
+        copy { from("src/ui"); into(new File(root, "ui")) }
+        def providerApks = fileTree(layout.buildDirectory.dir("outputs/apk/debug")).matching {
+            include "*.apk"
+        }.files
+        if (providerApks.size() != 1) {
+            throw new GradleException("需要且只能有一个 Debug Provider APK，实际为 ${providerApks.size()}")
+        }
+        copy {
+            from(providerApks.first())
+            into(new File(root, "android"))
+            rename { "provider.apk" }
+        }
+    }
+}
+
+def resolveRequiredPath = { String propertyName, String environmentName, File workspaceFallback ->
+    def configured = providers.gradleProperty(propertyName)
+            .orElse(providers.environmentVariable(environmentName))
+            .orNull
+    def value = configured ? file(configured) : workspaceFallback
+    if (value == null || !value.isFile()) {
+        throw new GradleException("缺少 ${propertyName}；请通过 Gradle 属性或 ${environmentName} 指定文件")
+    }
+    return value.absoluteFile
+}
+
+def packagePlugin = tasks.register("packagePlugin") {
+    dependsOn preparePluginPackage
+    inputs.dir(packageStaging)
+    outputs.file(packagedPlugin)
+    doLast {
+        def workspaceRoot = rootDir.parentFile?.parentFile
+        def cli = resolveRequiredPath(
+                "atsCliPath",
+                "ATS_CLI_PATH",
+                workspaceRoot == null ? null : new File(workspaceRoot, "app/tools/plugin/ats.py")
+        )
+        def publicKey = resolveRequiredPath(
+                "atsProviderPublicKey",
+                "ATS_PROVIDER_PUBLIC_KEY",
+                workspaceRoot == null ? null : new File(workspaceRoot, "plugin-registry/registry-public.pem")
+        )
+        def signingKey = resolveRequiredPath("atsProviderSigningKey", "ATS_PROVIDER_SIGNING_KEY", null)
+        def python = providers.gradleProperty("atsPython")
+                .orElse(providers.environmentVariable("ATS_PYTHON"))
+                .getOrElse("python")
+        def output = packagedPlugin.get().asFile
+        output.parentFile.mkdirs()
+        providers.exec {
+            commandLine python, cli, "pack", packageStaging.get().asFile,
+                    "--output", output,
+                    "--signing-key", signingKey,
+                    "--public-key", publicKey
+        }.result.get().assertNormalExitValue()
+        providers.exec {
+            commandLine python, cli, "verify", output,
+                    "--public-key", publicKey,
+                    "--require-signature"
+        }.result.get().assertNormalExitValue()
+    }
+}
+
+tasks.register("collectArtifacts", Copy) {
+    dependsOn packagePlugin
+    group = "distribution"
+    description = "Builds and collects the signed Shizuku authorization plugin."
+    into layout.projectDirectory.dir("artifacts")
+    from(packagedPlugin)
+}
