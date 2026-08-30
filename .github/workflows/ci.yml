@@ -23,19 +23,11 @@ jobs:
       - name: Checkout plugin
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
 
-      - name: Read SDK version
-        id: sdk
-        shell: pwsh
-        run: |
-          $line = Select-String -Path .\gradle.properties -Pattern '^atsPluginSdkVersion=(.+)$'
-          if ($null -eq $line) { throw 'atsPluginSdkVersion is missing' }
-          "version=$($line.Matches[0].Groups[1].Value.Trim())" >> $env:GITHUB_OUTPUT
-
-      - name: Checkout matching SDK and ATS CLI
+      - name: Checkout current SDK and ATS CLI
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
           repository: android-tool-suite/app
-          ref: plugin-sdk-v${{ steps.sdk.outputs.version }}
+          ref: main
           path: _sdk-source
 
       - name: Checkout provider trust root
