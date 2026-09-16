@@ -2,9 +2,9 @@ plugins {
     id "com.android.application"
 }
 
-def pluginVersionName = "1.0.0"
-def pluginVersionCode = 1
-def minHostVersionCode = 23
+def pluginVersionName = "1.1.0"
+def pluginVersionCode = 2
+def minHostVersionCode = 24
 def pluginSdkVersion = providers.gradleProperty("atsPluginSdkVersion").get()
 
 android {
@@ -33,7 +33,11 @@ android {
 }
 
 dependencies {
+    compileOnly "dev.rikka.shizuku:api:13.1.5"
+    testImplementation "dev.rikka.shizuku:api:13.1.5"
     compileOnly "com.androidtoolsuite:plugin-sdk:$pluginSdkVersion"
+    testImplementation "com.androidtoolsuite:plugin-sdk:$pluginSdkVersion"
+    testImplementation "junit:junit:4.13.2"
 }
 
 def packageStaging = layout.buildDirectory.dir("generated/plugin-package")

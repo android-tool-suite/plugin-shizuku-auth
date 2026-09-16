@@ -47,6 +47,12 @@
         "version": "1.0.0",
         "providerEntry": "main-provider",
         "methods": ["accessibility.getConnection", "accessibility.listServices", "accessibility.setEnabled"]
+      },
+      {
+        "id": "system.logs",
+        "version": "1.0.0",
+        "providerEntry": "main-provider",
+        "methods": ["system.logs.search"]
       }
     ]
   },

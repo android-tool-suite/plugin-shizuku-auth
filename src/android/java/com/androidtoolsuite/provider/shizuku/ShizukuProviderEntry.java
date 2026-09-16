@@ -14,7 +14,7 @@ import com.androidtoolsuite.app.plugin.runtime.CapabilityProvider;
 import com.androidtoolsuite.app.plugin.runtime.CapabilityRegistrar;
 import com.androidtoolsuite.app.plugin.runtime.NativeProviderEntry;
 import com.androidtoolsuite.app.plugin.runtime.ProviderContext;
-import com.androidtoolsuite.app.plugin.runtime.TrustedPlatformBridge;
+
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -31,11 +31,12 @@ import java.util.Set;
 public final class ShizukuProviderEntry implements NativeProviderEntry {
     @Override
     public AutoCloseable register(ProviderContext context, CapabilityRegistrar registrar) throws Exception {
-        TrustedPlatformBridge bridge = context.trustedPlatform();
+        ShizukuTransport bridge = new ShizukuTransport();
         List<AutoCloseable> effects = new ArrayList<>();
         try {
             effects.add(registrar.register(new ShizukuControlProvider(bridge)));
             effects.add(registrar.register(new AccessibilityProvider(context.applicationContext(), bridge)));
+            effects.add(registrar.register(new SystemLogsProvider(bridge)));
             return () -> closeReverse(effects);
         } catch (Exception error) {
             closeReverse(effects);
@@ -64,9 +65,9 @@ public final class ShizukuProviderEntry implements NativeProviderEntry {
     }
 
     private static final class ShizukuControlProvider extends Provider {
-        private final TrustedPlatformBridge bridge;
+        private final ShizukuTransport bridge;
 
-        ShizukuControlProvider(TrustedPlatformBridge bridge) {
+        ShizukuControlProvider(ShizukuTransport bridge) {
             super("shizuku.control", "shizuku.getConnection", "shizuku.requestPermission", "shizuku.connect");
             this.bridge = bridge;
         }
@@ -140,9 +141,9 @@ public final class ShizukuProviderEntry implements NativeProviderEntry {
         private static final String ENABLED_SERVICES = "enabled_accessibility_services";
         private static final String ACCESSIBILITY_ENABLED = "accessibility_enabled";
         private final Context context;
-        private final TrustedPlatformBridge bridge;
+        private final ShizukuTransport bridge;
 
-        AccessibilityProvider(Context context, TrustedPlatformBridge bridge) {
+        AccessibilityProvider(Context context, ShizukuTransport bridge) {
             super("accessibility.manage", "accessibility.getConnection", "accessibility.listServices",
                     "accessibility.setEnabled");
             this.context = context.getApplicationContext();
@@ -266,6 +267,75 @@ public final class ShizukuProviderEntry implements NativeProviderEntry {
         }
     }
 
+    private static final class SystemLogsProvider extends Provider {
+        private final ShizukuTransport bridge;
+
+        SystemLogsProvider(ShizukuTransport bridge) {
+            super("system.logs", "system.logs.search");
+            this.bridge = bridge;
+        }
+
+        @Override
+        public JSONObject call(CapabilityCall call) throws CapabilityFailure {
+            requireGesture(call);
+            JSONArray requested = call.payload.optJSONArray("terms");
+            JSONArray allowed = call.scopes.optJSONArray("terms");
+            if (requested == null || requested.length() < 1 || requested.length() > 8) {
+                throw CapabilityFailure.invalid("terms must contain 1-8 entries");
+            }
+            List<String> terms = new ArrayList<>();
+            for (int index = 0; index < requested.length(); index++) {
+                String term = requiredString(requested, index, 80);
+                if (!allowed(allowed, term)) {
+                    throw new CapabilityFailure("CAPABILITY_UNDECLARED", "Search term is outside declared scope", false);
+                }
+                terms.add(term.toLowerCase(java.util.Locale.ROOT));
+            }
+            String matchMode = call.payload.optString("matchMode", "all");
+            if (!Set.of("all", "any").contains(matchMode)) {
+                throw CapabilityFailure.invalid("matchMode must be all or any");
+            }
+            int scopeLimit = Math.max(1, Math.min(200, call.scopes.optInt("maxLines", 100)));
+            int maxLines = Math.max(1, Math.min(scopeLimit, call.payload.optInt("maxLines", scopeLimit)));
+            int lookbackMinutes = 0;
+            if (call.payload.has("lookbackMinutes")) {
+                Object value = call.payload.opt("lookbackMinutes");
+                if (!(value instanceof Number) || ((Number) value).doubleValue() != ((Number) value).intValue()
+                        || ((Number) value).intValue() < 0 || ((Number) value).intValue() > 10080) {
+                    throw CapabilityFailure.invalid("lookbackMinutes must be an integer from 0 to 10080");
+                }
+                lookbackMinutes = ((Number) value).intValue();
+            }
+            if (!"ready".equals(bridge.shizukuState())) {
+                bridge.ensureShizukuConnected();
+                throw offline("Shizuku 系统服务尚未连接");
+            }
+            try {
+                SystemLogSearch.Result result = SystemLogSearch.search(
+                        bridge.readSystemLog(2 * 1024 * 1024, terms, lookbackMinutes),
+                        terms,
+                        "all".equals(matchMode),
+                        maxLines
+                );
+                JSONArray lines = new JSONArray();
+                for (String line : result.lines) lines.put(line);
+                return new JSONObject().put("lines", lines).put("truncated", result.truncated)
+                        .put("lookbackMinutes", lookbackMinutes);
+            } catch (IOException | JSONException | RuntimeException error) {
+                throw new CapabilityFailure("PROVIDER_OFFLINE", "无法读取游戏日志：" + safeMessage(error), true);
+            }
+        }
+
+        private static boolean allowed(JSONArray values, String target) {
+            if (values == null) return false;
+            for (int index = 0; index < values.length(); index++) {
+                if (target.equalsIgnoreCase(values.optString(index))) return true;
+            }
+            return false;
+        }
+
+    }
+
     private static final class ServiceInfo {
         final String appLabel;
         final String serviceLabel;
@@ -287,6 +357,14 @@ public final class ShizukuProviderEntry implements NativeProviderEntry {
         if (!(raw instanceof String)) throw CapabilityFailure.invalid("Missing string field " + name);
         String text = ((String) raw).trim();
         if (text.isEmpty() || text.length() > maxLength) throw CapabilityFailure.invalid("Invalid field " + name);
+        return text;
+    }
+
+    private static String requiredString(JSONArray value, int index, int maxLength) throws CapabilityFailure {
+        Object raw = value.opt(index);
+        if (!(raw instanceof String)) throw CapabilityFailure.invalid("Search term must be a string");
+        String text = ((String) raw).trim();
+        if (text.isEmpty() || text.length() > maxLength) throw CapabilityFailure.invalid("Invalid search term");
         return text;
     }
 
