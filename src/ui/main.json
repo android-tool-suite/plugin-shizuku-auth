@@ -29,7 +29,9 @@
       "capability": "shizuku.control",
       "method": "shizuku.requestPermission",
       "payload": {},
-      "refresh": ["connection"],
+      "refresh": [
+        "connection"
+      ],
       "successMessage": "已提交 Shizuku 授权请求",
       "deadlineMs": 5000
     },
@@ -38,8 +40,21 @@
       "capability": "shizuku.control",
       "method": "shizuku.connect",
       "payload": {},
-      "refresh": ["connection"],
+      "refresh": [
+        "connection"
+      ],
       "successMessage": "正在连接系统服务",
+      "deadlineMs": 5000
+    },
+    {
+      "id": "refresh-connection",
+      "capability": "shizuku.control",
+      "method": "shizuku.getConnection",
+      "payload": {},
+      "refresh": [
+        "connection"
+      ],
+      "successMessage": "连接状态已更新",
       "deadlineMs": 5000
     }
   ],
@@ -48,26 +63,43 @@
     "gap": "large",
     "children": [
       {
-        "type": "notice",
-        "tone": "neutral",
-        "value": "此插件已被应用完全信任，可以直接使用应用拥有的系统权限。"
-      },
-      {
         "type": "card",
         "tone": "primary",
-        "when": { "path": "connection.connected", "equals": true },
+        "when": {
+          "path": "connection.connected",
+          "equals": true
+        },
         "children": [
           {
             "type": "row",
             "gap": "medium",
             "children": [
-              { "type": "icon", "name": "check-circle", "tone": "success" },
+              {
+                "type": "icon",
+                "name": "check-circle",
+                "tone": "success"
+              },
               {
                 "type": "column",
                 "gap": "small",
                 "children": [
-                  { "type": "text", "value": { "path": "connection.title", "fallback": "状态未知" }, "style": "title" },
-                  { "type": "text", "value": { "path": "connection.detail", "fallback": "暂时无法读取连接状态" }, "style": "body", "tone": "muted" }
+                  {
+                    "type": "text",
+                    "value": {
+                      "path": "connection.title",
+                      "fallback": "状态未知"
+                    },
+                    "style": "title"
+                  },
+                  {
+                    "type": "text",
+                    "value": {
+                      "path": "connection.detail",
+                      "fallback": "暂时无法读取连接状态"
+                    },
+                    "style": "body",
+                    "tone": "muted"
+                  }
                 ]
               }
             ]
@@ -77,24 +109,155 @@
       {
         "type": "card",
         "tone": "surface",
-        "when": { "path": "connection.connected", "equals": false },
+        "when": {
+          "path": "connection.connected",
+          "equals": false
+        },
         "children": [
           {
             "type": "row",
             "gap": "medium",
             "children": [
-              { "type": "icon", "name": "cloud-off", "tone": "muted" },
+              {
+                "type": "icon",
+                "name": "cloud-off",
+                "tone": "muted"
+              },
               {
                 "type": "column",
                 "gap": "small",
                 "children": [
-                  { "type": "text", "value": { "path": "connection.title", "fallback": "状态未知" }, "style": "title" },
-                  { "type": "text", "value": { "path": "connection.detail", "fallback": "暂时无法读取连接状态" }, "style": "body", "tone": "muted" }
+                  {
+                    "type": "text",
+                    "value": {
+                      "path": "connection.title",
+                      "fallback": "状态未知"
+                    },
+                    "style": "title"
+                  },
+                  {
+                    "type": "text",
+                    "value": {
+                      "path": "connection.detail",
+                      "fallback": "暂时无法读取连接状态"
+                    },
+                    "style": "body",
+                    "tone": "muted"
+                  }
                 ]
               }
             ]
           }
         ]
+      },
+      {
+        "type": "card",
+        "children": [
+          {
+            "type": "text",
+            "value": "连接步骤",
+            "style": "title"
+          },
+          {
+            "type": "row",
+            "gap": "medium",
+            "children": [
+              {
+                "type": "text",
+                "value": "1. 启动 Shizuku",
+                "style": "body"
+              },
+              {
+                "type": "text",
+                "value": "已完成",
+                "style": "label",
+                "when": {
+                  "path": "connection.ready",
+                  "equals": true
+                }
+              },
+              {
+                "type": "text",
+                "value": "待完成",
+                "style": "label",
+                "tone": "muted",
+                "when": {
+                  "path": "connection.ready",
+                  "equals": false
+                }
+              }
+            ]
+          },
+          {
+            "type": "row",
+            "gap": "medium",
+            "children": [
+              {
+                "type": "text",
+                "value": "2. 授权本应用",
+                "style": "body"
+              },
+              {
+                "type": "text",
+                "value": "已完成",
+                "style": "label",
+                "when": {
+                  "path": "connection.granted",
+                  "equals": true
+                }
+              },
+              {
+                "type": "text",
+                "value": "待完成",
+                "style": "label",
+                "tone": "muted",
+                "when": {
+                  "path": "connection.granted",
+                  "equals": false
+                }
+              }
+            ]
+          },
+          {
+            "type": "row",
+            "gap": "medium",
+            "children": [
+              {
+                "type": "text",
+                "value": "3. 连接系统服务",
+                "style": "body"
+              },
+              {
+                "type": "text",
+                "value": "已完成",
+                "style": "label",
+                "when": {
+                  "path": "connection.connected",
+                  "equals": true
+                }
+              },
+              {
+                "type": "text",
+                "value": "待完成",
+                "style": "label",
+                "tone": "muted",
+                "when": {
+                  "path": "connection.connected",
+                  "equals": false
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "notice",
+        "tone": "neutral",
+        "value": "请在设备上打开 Shizuku 并启动服务，然后返回重新检查。",
+        "when": {
+          "path": "connection.state",
+          "equals": "offline"
+        }
       },
       {
         "type": "row",
@@ -106,17 +269,35 @@
             "action": "request-permission",
             "style": "primary",
             "fullWidth": true,
-            "enabledWhen": { "path": "connection.state", "equals": "unauthorized" }
+            "when": {
+              "path": "connection.state",
+              "equals": "unauthorized"
+            }
           },
           {
             "type": "button",
             "label": "连接服务",
             "action": "connect-service",
-            "style": "secondary",
+            "style": "primary",
             "fullWidth": true,
-            "enabledWhen": { "path": "connection.state", "equals": "connecting" }
+            "when": {
+              "path": "connection.state",
+              "equals": "connecting"
+            }
+          },
+          {
+            "type": "button",
+            "label": "重新检查",
+            "action": "refresh-connection",
+            "style": "secondary",
+            "fullWidth": true
           }
         ]
+      },
+      {
+        "type": "notice",
+        "tone": "neutral",
+        "value": "此插件已被应用完全信任，可以直接使用应用拥有的系统权限。"
       }
     ]
   }
