@@ -20,3 +20,7 @@ gradle `
 ```
 
 聚合工作区的 `tools/build-all.ps1` 会传入这些路径并把 `artifacts/shizuku-auth.atsplugin` 收集到外层产物目录。
+
+## Debug 发布
+
+日常 CI 只验证构建；手动推送 `debug-<完整提交 SHA>` 标签后重新构建签名包并发布不可变 Debug，随后通知索引更新。
