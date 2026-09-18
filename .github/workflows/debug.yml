@@ -3,7 +3,7 @@ name: Release debug
 on:
   push:
     tags:
-      - 'debug-*'
+      - 'debug-v*'
 
 permissions:
   contents: write
@@ -39,9 +39,11 @@ jobs:
         env:
           DEBUG_TAG: ${{ github.ref_name }}
         run: |
-          $commit = git rev-parse HEAD
-          if ($LASTEXITCODE -ne 0 -or $env:DEBUG_TAG -cne "debug-$commit" -or $commit -cne $env:GITHUB_SHA) {
-            throw 'Debug tag must match debug-<full checked-out commit SHA>.'
+          $build = Get-Content './build.gradle' -Raw
+          if ($build -notmatch 'pluginVersionName\s*=\s*"([^"]+)"') { throw 'Cannot read component version.' }
+          $version = $Matches[1]
+          if ($env:DEBUG_TAG -notmatch '^debug-v\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$' -or $env:DEBUG_TAG -cne "debug-v$version") {
+            throw 'Debug tag must match debug-v<component version>, for example debug-v1.8.0.'
           }
 
       - name: Set up JDK 17
