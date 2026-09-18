@@ -126,4 +126,4 @@ jobs:
         shell: pwsh
         env:
           GH_TOKEN: ${{ steps.registry-app-token.outputs.token }}
-        run: .\.github\scripts\dispatch-registry.ps1 -Channel release -Reference '${{ github.ref_name }}'
+        run: .\.github\scripts\dispatch-registry.ps1 -Reference '${{ github.ref_name }}'

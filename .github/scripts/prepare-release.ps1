@@ -4,10 +4,8 @@ param(
     [string]$ArtifactPath,
     [Parameter(Mandatory)]
     [string]$OutputDirectory,
-    [string]$ExpectedTag = '',
-    [ValidateSet('release', 'debug')]
-    [string]$Channel = 'release',
-    [string]$CommitSha = ''
+    [Parameter(Mandatory)]
+    [string]$ExpectedTag
 )
 
 $ErrorActionPreference = 'Stop'
@@ -29,16 +27,11 @@ finally {
 
 $plugin = $manifest.plugin
 if ([int]$manifest.formatVersion -ne 3) { throw 'Release 插件必须使用 formatVersion 3' }
-if ($Channel -eq 'release') {
-    if ($ExpectedTag -ne "v$($plugin.version)") {
-        throw "标签 $ExpectedTag 与插件版本 $($plugin.version) 不一致"
-    }
-    if (-not (Select-String -LiteralPath (Join-Path $repositoryRoot 'CHANGELOG.md') -SimpleMatch $plugin.version -Quiet)) {
-        throw "CHANGELOG.md 缺少 $($plugin.version)"
-    }
+if ($ExpectedTag -ne "v$($plugin.version)") {
+    throw "标签 $ExpectedTag 与插件版本 $($plugin.version) 不一致"
 }
-elseif ($CommitSha -notmatch '^[0-9a-fA-F]{40}$') {
-    throw 'Debug 发布必须提供完整的 commit SHA'
+if (-not (Select-String -LiteralPath (Join-Path $repositoryRoot 'CHANGELOG.md') -SimpleMatch $plugin.version -Quiet)) {
+    throw "CHANGELOG.md 缺少 $($plugin.version)"
 }
 
 $compatibility = $null
@@ -71,7 +64,7 @@ $dependencies = @($manifest.requires.plugins | ForEach-Object { $_.id })
 $metadata = [ordered]@{
     schemaVersion = 1
     type = 'plugin'
-    channel = $Channel
+    channel = 'release'
     id = $plugin.id
     title = $plugin.title
     description = $plugin.description
@@ -92,9 +85,6 @@ if ($null -ne $compatibility) {
         minReadableDataFormatVersion = [int]$compatibility.minReadableDataFormatVersion
         maxReadableDataFormatVersion = [int]$compatibility.maxReadableDataFormatVersion
     }
-}
-if ($Channel -eq 'debug') {
-    $metadata.commitSha = $CommitSha.ToLowerInvariant()
 }
 $metadata | ConvertTo-Json -Depth 8 |
     Set-Content -LiteralPath (Join-Path $OutputDirectory 'release-metadata.json') -Encoding utf8
