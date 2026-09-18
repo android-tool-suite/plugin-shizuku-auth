@@ -2,9 +2,9 @@ plugins {
     id "com.android.application"
 }
 
-def pluginVersionName = "1.1.0"
-def pluginVersionCode = 2
-def minHostVersionCode = 24
+def pluginVersionName = "1.0.0"
+def pluginVersionCode = 1
+def minHostVersionCode = 23
 def pluginSdkVersion = providers.gradleProperty("atsPluginSdkVersion").get()
 
 android {
