@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>Shizuku 授权</title>
+  <link rel="stylesheet" href="/__ats__/theme.css">
+  <link rel="stylesheet" href="styles.css">
+  <script src="app.js" defer></script>
+</head>
+<body>
+<main id="content" hidden>
+  <section id="status" class="card">
+    <div class="status-heading"><div id="status-mark" class="mark" aria-hidden="true"></div><div><h2 id="status-title"></h2><p id="status-detail"></p></div></div>
+    <div id="metrics" class="connection-mode" hidden><span>运行模式</span><strong id="mode"></strong></div>
+  </section>
+  <div id="steps"></div>
+  <section id="return-notice" class="notice" hidden><p>连接处理完成后，可以回到原任务继续操作。</p><button id="return-task" class="button secondary" type="button">返回原任务</button></section>
+  <section class="settings-section"><h3>连接与说明</h3><button id="refresh" class="settings-row" type="button"><span class="row-icon" aria-hidden="true">↻</span><span class="grow"><strong>重新检查连接</strong><small>不改变现有授权</small></span><span aria-hidden="true">›</span></button></section>
+  <div class="progress-slot"><div id="progress" class="progress" hidden><span></span></div></div>
+  <p id="message" class="notice" role="status" hidden></p>
+  <p class="connection-help">此插件以应用身份提供系统能力。普通插件调用它时，仍需各自获得允许。</p>
+</main>
+</body>
+</html>

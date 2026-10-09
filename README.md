@@ -23,4 +23,8 @@ gradle `
 
 ## 构建与发布
 
+本地构建需要 JDK 17、Android SDK 35 和 Node.js 24；`collectArtifacts` 同时检查 Web 授权页的消息生命周期，单独验证可运行 `gradle testWebUi`。
+
 日常 CI 只验证构建并上传产物；Debug 通过本地构建和 ADB 导入进行调试。推送 `v<versionName>` 标签后发布正式签名包并通知正式索引更新。
+
+SDK 编译依赖按 `atsPluginSdkVersion` 的公开标签获取；打包和校验工具按 `atsCliRef` 固定的宿主提交获取。两者独立锁定，因为新的 Runtime Contract 清单字段不要求改变原生 SDK ABI。推送插件提交前先确保该工具提交已在宿主远端可获取。

@@ -2,9 +2,9 @@ plugins {
     id "com.android.application"
 }
 
-def pluginVersionName = "1.0.0"
-def pluginVersionCode = 1
-def minHostVersionCode = 23
+def pluginVersionName = "1.1.0"
+def pluginVersionCode = 2
+def minHostVersionCode = 24
 def pluginSdkVersion = providers.gradleProperty("atsPluginSdkVersion").get()
 
 android {
@@ -65,12 +65,14 @@ def generatePluginManifest = tasks.register("generatePluginManifest") {
 def preparePluginPackage = tasks.register("preparePluginPackage") {
     dependsOn "assembleDebug", generatePluginManifest
     inputs.dir("src/ui")
+    inputs.dir("src/web")
     inputs.files(layout.buildDirectory.dir("outputs/apk/debug"))
     outputs.dir(packageStaging)
     doLast {
         def root = packageStaging.get().asFile
-        delete new File(root, "ui"), new File(root, "android"), new File(root, "META-INF")
+        delete new File(root, "ui"), new File(root, "web"), new File(root, "android"), new File(root, "META-INF")
         copy { from("src/ui"); into(new File(root, "ui")) }
+        copy { from("src/web"); into(new File(root, "web")) }
         def providerApks = fileTree(layout.buildDirectory.dir("outputs/apk/debug")).matching {
             include "*.apk"
         }.files
@@ -132,8 +134,15 @@ def packagePlugin = tasks.register("packagePlugin") {
     }
 }
 
+def testWebUi = tasks.register("testWebUi", Exec) {
+    group = "verification"
+    description = "Checks the authorization UI message lifecycle."
+    commandLine(["node", "--test"] + fileTree("src/test-js").matching { include "*.test.js" }.files.collect { it.absolutePath }.sort())
+}
+tasks.named("check") { dependsOn testWebUi }
+
 tasks.register("collectArtifacts", Copy) {
-    dependsOn packagePlugin
+    dependsOn packagePlugin, testWebUi
     group = "distribution"
     description = "Builds and collects the signed Shizuku authorization plugin."
     into layout.projectDirectory.dir("artifacts")

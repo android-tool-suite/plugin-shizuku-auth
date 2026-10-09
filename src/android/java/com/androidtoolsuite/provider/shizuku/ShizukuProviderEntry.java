@@ -34,7 +34,7 @@ public final class ShizukuProviderEntry implements NativeProviderEntry {
         ShizukuTransport bridge = new ShizukuTransport();
         List<AutoCloseable> effects = new ArrayList<>();
         try {
-            effects.add(registrar.register(new ShizukuControlProvider(bridge)));
+            effects.add(registrar.register(new ShizukuControlProvider(context.applicationContext(), bridge)));
             effects.add(registrar.register(new AccessibilityProvider(context.applicationContext(), bridge)));
             effects.add(registrar.register(new SystemLogsProvider(bridge)));
             return () -> closeReverse(effects);
@@ -66,9 +66,11 @@ public final class ShizukuProviderEntry implements NativeProviderEntry {
 
     private static final class ShizukuControlProvider extends Provider {
         private final ShizukuTransport bridge;
+        private final Context context;
 
-        ShizukuControlProvider(ShizukuTransport bridge) {
-            super("shizuku.control", "shizuku.getConnection", "shizuku.requestPermission", "shizuku.connect");
+        ShizukuControlProvider(Context context, ShizukuTransport bridge) {
+            super("shizuku.control", "shizuku.getConnection", "shizuku.requestPermission", "shizuku.connect", "shizuku.openApp");
+            this.context = context.getApplicationContext();
             this.bridge = bridge;
         }
 
@@ -77,6 +79,18 @@ public final class ShizukuProviderEntry implements NativeProviderEntry {
             switch (call.method) {
                 case "shizuku.getConnection":
                     return status();
+                case "shizuku.openApp":
+                    requireGesture(call);
+                    Intent launch = context.getPackageManager().getLaunchIntentForPackage("moe.shizuku.privileged.api");
+                    if (launch == null) {
+                        throw new CapabilityFailure("NOT_SUPPORTED", "设备上未安装可打开的 Shizuku 应用", false);
+                    }
+                    try {
+                        context.startActivity(launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+                    } catch (RuntimeException error) {
+                        throw new CapabilityFailure("NOT_SUPPORTED", "无法打开 Shizuku，请从设备桌面手动打开", true);
+                    }
+                    return object("opened", true);
                 case "shizuku.requestPermission":
                     requireGesture(call);
                     if (!bridge.isShizukuReady()) throw offline("请先在设备上启动 Shizuku");
@@ -107,20 +121,20 @@ public final class ShizukuProviderEntry implements NativeProviderEntry {
             String detail;
             if (!ready) {
                 state = "offline";
-                title = "未连接";
-                detail = "请先启动 Shizuku。";
+                title = "Shizuku 尚未运行";
+                detail = "先启动设备上的 Shizuku，再返回这里检查。";
             } else if (!granted) {
                 state = "unauthorized";
-                title = "等待授权";
-                detail = "连接已建立，仍需批准此应用的授权请求。";
+                title = "等待允许本应用";
+                detail = "服务已运行，还需要允许本应用连接。";
             } else if (!connected) {
                 state = "connecting";
-                title = "正在连接";
-                detail = "授权成功，可以连接系统服务。";
+                title = "正在建立系统连接";
+                detail = "已获得授权，可以重新连接系统服务。";
             } else {
                 state = "ready";
-                title = "运行正常";
-                detail = "系统服务已连接 · UID " + bridge.shizukuUid();
+                title = "连接正常";
+                detail = "需要系统能力的工具现在可以继续使用。";
             }
             try {
                 return new JSONObject()
@@ -130,6 +144,7 @@ public final class ShizukuProviderEntry implements NativeProviderEntry {
                         .put("ready", ready)
                         .put("granted", granted)
                         .put("connected", connected)
+                        .put("mode", connected ? (bridge.shizukuUid() == 0 ? "Root" : bridge.shizukuUid() == 2000 ? "ADB" : "UID " + bridge.shizukuUid()) : "未连接")
                         .put("uid", bridge.shizukuUid());
             } catch (JSONException error) {
                 throw internal(error);
@@ -151,7 +166,9 @@ public final class ShizukuProviderEntry implements NativeProviderEntry {
         }
 
         @Override
-        public JSONObject call(CapabilityCall call) throws CapabilityFailure {
+        public synchronized JSONObject call(CapabilityCall call) throws CapabilityFailure {
+            // Service toggles and scheduled restores share one read-modify-write setting.
+            // Serialize them so independent row actions cannot overwrite each other.
             String state = bridge.shizukuState();
             if ("accessibility.getConnection".equals(call.method)) {
                 if ("connecting".equals(state)) bridge.ensureShizukuConnected();

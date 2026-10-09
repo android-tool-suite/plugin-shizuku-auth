@@ -31,6 +31,7 @@
   "requires": {
     "plugins": [],
     "capabilities": [
+      { "id": "app", "version": "^1.0.0", "optional": false, "scopes": {} },
       { "id": "shizuku.control", "version": "^1.0.0", "optional": false, "scopes": {} }
     ]
   },
@@ -40,7 +41,7 @@
         "id": "shizuku.control",
         "version": "1.0.0",
         "providerEntry": "main-provider",
-        "methods": ["shizuku.getConnection", "shizuku.requestPermission", "shizuku.connect"]
+        "methods": ["shizuku.getConnection", "shizuku.requestPermission", "shizuku.connect", "shizuku.openApp"]
       },
       {
         "id": "accessibility.manage",
@@ -64,7 +65,7 @@
         "title": "Shizuku",
         "template": "status",
         "dataSource": "shizuku.getConnection",
-        "sizes": ["2x2", "4x2"]
+        "sizes": ["2x2", "4x2", "1x1", "1x2", "2x1"]
       }
     ]
   },
