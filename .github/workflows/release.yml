@@ -23,21 +23,43 @@ jobs:
     steps:
       - name: Checkout plugin
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          fetch-depth: 0
 
-      - name: Read SDK version
+      - name: Test release notes and audit changelog history
+        shell: pwsh
+        run: |
+          .\.github\scripts\test-release-notes.ps1
+          . .\.github\scripts\release-notes.ps1
+          $tag = if ('${{ github.event_name }}' -eq 'push') { '${{ github.ref_name }}' } else { '${{ inputs.tag }}' }
+          $version = $tag -replace '^v', ''
+          $null = Get-ChangelogReleaseNotes -Text (Get-Content .\CHANGELOG.md -Raw -Encoding utf8) -Version $version -RequirePublished
+          Assert-ChangelogHistory -RepositoryRoot (Get-Location).Path -CurrentVersion $version
+
+      - name: Read SDK and CLI references
         id: sdk
         shell: pwsh
         run: |
           $line = Select-String -Path .\gradle.properties -Pattern '^atsPluginSdkVersion=(.+)$'
           if ($null -eq $line) { throw 'atsPluginSdkVersion is missing' }
           "version=$($line.Matches[0].Groups[1].Value.Trim())" >> $env:GITHUB_OUTPUT
+          $cli = Select-String -Path .\gradle.properties -Pattern '^atsCliRef=([0-9a-f]{40})$'
+          if ($null -eq $cli) { throw 'Pinned ATS CLI reference is missing' }
+          "cli-ref=$($cli.Matches[0].Groups[1].Value)" >> $env:GITHUB_OUTPUT
 
-      - name: Checkout matching SDK and ATS CLI
+      - name: Checkout matching SDK
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
           repository: android-tool-suite/app
           ref: plugin-sdk-v${{ steps.sdk.outputs.version }}
           path: _sdk-source
+
+      - name: Checkout pinned ATS CLI
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          repository: android-tool-suite/app
+          ref: ${{ steps.sdk.outputs.cli-ref }}
+          path: _ats-source
 
       - name: Checkout provider trust root
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
@@ -50,6 +72,11 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24'
 
       - name: Set up Gradle 8.9
         uses: gradle/actions/setup-gradle@90ddb51e90a5fd9ba75f40cf85156b7b41bf76a3
@@ -73,7 +100,7 @@ jobs:
           $signingKey = Join-Path $env:RUNNER_TEMP 'provider-signing-key.pem'
           [IO.File]::WriteAllText($signingKey, $env:PROVIDER_SIGNING_KEY_PEM, [Text.Encoding]::ASCII)
           gradle `
-            "-PatsCliPath=$((Resolve-Path .\_sdk-source\tools\plugin\ats.py).Path)" `
+            "-PatsCliPath=$((Resolve-Path .\_ats-source\tools\plugin\ats.py).Path)" `
             "-PatsProviderSigningKey=$signingKey" `
             "-PatsProviderPublicKey=$((Resolve-Path .\_registry\registry-public.pem).Path)" `
             clean collectArtifacts
@@ -101,13 +128,15 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          $releaseMetadata = Get-Content -LiteralPath .\release-dist\release-metadata.json -Raw | ConvertFrom-Json
+          $releaseArtifact = Join-Path .\release-dist $releaseMetadata.artifactName
           gh release create '${{ github.ref_name }}' `
-            .\release-dist\shizuku-auth.atsplugin `
+            $releaseArtifact `
             .\release-dist\release-metadata.json `
             .\release-dist\SHA256SUMS.txt `
             --verify-tag --draft `
             --title 'Shizuku Authorization ${{ github.ref_name }}' `
-            --generate-notes
+            --notes-file .\release-dist\release-notes.md
           gh release edit '${{ github.ref_name }}' --draft=false --latest
 
       - name: Create registry app token

@@ -23,12 +23,29 @@ jobs:
       - name: Checkout plugin
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
 
-      - name: Checkout current SDK and ATS CLI
+      - name: Read SDK and CLI references
+        id: build-references
+        shell: pwsh
+        run: |
+          $sdk = Select-String -Path .\gradle.properties -Pattern '^atsPluginSdkVersion=(.+)$'
+          $cli = Select-String -Path .\gradle.properties -Pattern '^atsCliRef=([0-9a-f]{40})$'
+          if ($null -eq $sdk -or $null -eq $cli) { throw 'SDK version or pinned ATS CLI reference is missing' }
+          "sdk-version=$($sdk.Matches[0].Groups[1].Value.Trim())" >> $env:GITHUB_OUTPUT
+          "cli-ref=$($cli.Matches[0].Groups[1].Value)" >> $env:GITHUB_OUTPUT
+
+      - name: Checkout matching SDK
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
           repository: android-tool-suite/app
-          ref: main
+          ref: plugin-sdk-v${{ steps.build-references.outputs.sdk-version }}
           path: _sdk-source
+
+      - name: Checkout pinned ATS CLI
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          repository: android-tool-suite/app
+          ref: ${{ steps.build-references.outputs.cli-ref }}
+          path: _ats-source
 
       - name: Checkout provider trust root
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
@@ -41,6 +58,11 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24'
 
       - name: Set up Gradle 8.9
         uses: gradle/actions/setup-gradle@90ddb51e90a5fd9ba75f40cf85156b7b41bf76a3
@@ -64,7 +86,7 @@ jobs:
           $signingKey = Join-Path $env:RUNNER_TEMP 'provider-signing-key.pem'
           [IO.File]::WriteAllText($signingKey, $env:PROVIDER_SIGNING_KEY_PEM, [Text.Encoding]::ASCII)
           gradle `
-            "-PatsCliPath=$((Resolve-Path .\_sdk-source\tools\plugin\ats.py).Path)" `
+            "-PatsCliPath=$((Resolve-Path .\_ats-source\tools\plugin\ats.py).Path)" `
             "-PatsProviderSigningKey=$signingKey" `
             "-PatsProviderPublicKey=$((Resolve-Path .\_registry\registry-public.pem).Path)" `
             clean collectArtifacts

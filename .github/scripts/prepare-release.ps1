@@ -10,6 +10,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
+. (Join-Path $PSScriptRoot 'release-notes.ps1')
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 
 $repositoryRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
@@ -30,9 +31,10 @@ if ([int]$manifest.formatVersion -ne 3) { throw 'Release 插件必须使用 form
 if ($ExpectedTag -ne "v$($plugin.version)") {
     throw "标签 $ExpectedTag 与插件版本 $($plugin.version) 不一致"
 }
-if (-not (Select-String -LiteralPath (Join-Path $repositoryRoot 'CHANGELOG.md') -SimpleMatch $plugin.version -Quiet)) {
-    throw "CHANGELOG.md 缺少 $($plugin.version)"
-}
+$releaseNotes = Get-ChangelogReleaseNotes `
+    -Text (Get-Content -LiteralPath (Join-Path $repositoryRoot 'CHANGELOG.md') -Raw -Encoding utf8) `
+    -Version $plugin.version -RequirePublished
+Assert-ChangelogHistory -RepositoryRoot $repositoryRoot -CurrentVersion $plugin.version
 
 $compatibility = $null
 $compatibilityPath = Join-Path $repositoryRoot 'data-compatibility.json'
@@ -50,7 +52,9 @@ if (Test-Path -LiteralPath $compatibilityPath -PathType Leaf) {
 }
 
 New-Item -ItemType Directory -Path $OutputDirectory -Force | Out-Null
-$targetArtifact = Join-Path $OutputDirectory $artifact.Name
+[IO.File]::WriteAllText((Join-Path $OutputDirectory 'release-notes.md'), $releaseNotes + "`n", [Text.UTF8Encoding]::new($false))
+$targetName = "$($artifact.BaseName)-v$($plugin.version)$($artifact.Extension)"
+$targetArtifact = Join-Path $OutputDirectory $targetName
 Copy-Item -LiteralPath $artifact.FullName -Destination $targetArtifact -Force
 $targetFile = Get-Item -LiteralPath $targetArtifact
 $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $targetArtifact).Hash.ToLowerInvariant()
